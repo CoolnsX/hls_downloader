@@ -69,7 +69,7 @@ printf "\033[2K\r\033[1;35mpieces : $range\n\033[1;33mDownloading.."
 for i in $(seq $range); do 
     curl -s "${relative_url}$(printf "%s" "$data" | sed -n "${i}p")" > "$tmpdir/$(printf "%04d" "$i").ts" && printf "\033[2K\r\033[1;32m ✓ $i / $range done" &
     jobs -p > "$jobdir"
-    while [ "$(cat "$jobdir" | wc -w)" -ge 35 ];do jobs > "$jobdir";sleep 0.05;done
+    while [ "$(cat "$jobdir" | wc -w)" -ge 36 ];do jobs > "$jobdir";sleep 0.05;done
 done
 wait
 

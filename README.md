@@ -4,7 +4,7 @@ A posix compliant highly fast and efficient Asynchronous stable m3u8 links dowlo
 
 # Increase Parallel Downloads..
 
-Currently its set to my internet speed
+Currently its set to my internet speed * 3 in [line 72](https://github.com/CoolnsX/hls_downloader/blob/main/hls#L72) in script
 
 ```
 Internet Speed = 12 MByte per seconds..
@@ -13,5 +13,5 @@ Internet Speed = 12 MByte per seconds..
 
 # Dependency
 
-- ffmpeg
-- openssl
+- ffmpeg for conversion
+- openssl for decrypting streams
