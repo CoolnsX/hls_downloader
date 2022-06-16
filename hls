@@ -1,0 +1,95 @@
+#!/bin/sh
+
+#initializing..
+
+help_text () {
+        while IFS= read -r line; do
+	    printf "%s\n" "$line"
+	done <<-EOF
+	Usage:
+	    ${0##*/} [ -f <filename> ] [ -s ] [ <m3u8_link> ]
+	    ${0##*/} -h
+	
+	Options:
+	    -h show helptext
+	    -f filename (default : video)
+	    -s select highest resolution automatically
+	EOF
+}
+
+skip_res=0
+file="video"
+tmpdir="${XDG_CACHE_HOME:-$HOME/.cache}/hls-temp"
+jobdir="${XDG_CACHE_HOME:-$HOME/.cache}/hls-jobs"
+
+while getopts 'fs' OPT; do
+        case $OPT in
+                f)	file=$OPTARG ;;
+                s)	skip_res=1;;
+                *|h)
+                        help_text
+                        exit 0
+                        ;;
+	esac
+done
+shift $((OPTIND - 1))
+
+[ -z "$*" ] && printf "\033[1;34mEnter link >\033[0m " && read -r link || link=$* 
+trap "rm -rdf $tmpdir $jobdir;exit 0" INT HUP
+printf "\033[2K\r\033[1;36mFetching resolutions.."
+m3u8_data=$(curl -s "$link")
+res_list=$(printf "%s" "$m3u8_data" | sed -nE 's_.*RESOLUTION=.*x([^,]*),.*_\1_p')
+highest_res=$(printf "$res_list" | sort -nr | head -1)
+[ "$skip_res" -eq 1 ] && printf "\033[2K\r\033[1;36mSelecting highest resolution.." || (printf "" printf "\033[2K\r\033[1;33mRESOLUTIONS >>\n\033[0m$res_list\n\033[1;34mType ur preferred resolution (default: $highest_res) > " && read -r sel_res)
+[ -z "$sel_res" ] && sel_res=$highest_res
+unset highest_res res_list
+url=$(printf "%s" "$m3u8_data" | sed -n "/$sel_res,/{n;p;}" | tr -d '\r')
+[ -d "$tmpdir" ] || mkdir -p "$tmpdir"
+#check whether the m3u8_data contains uri that starts from http
+printf "%s" "$m3u8_data" | grep -q "http" || relative_url=$(printf "%s" "$link" | sed 's_[^/]*$__')
+printf "\033[2K\r\033[1;36mFetching Metadata.."
+resp="$(curl -s "${relative_url}$url")"
+#extract key uri and iv uri from encrypted stream if exists..
+key_uri="$(printf "%s" "$resp" | sed -nE 's/^#EXT-X-KEY.*URI="([^"]*)"/\1/p')"
+[ -z "$key_uri" ] || iv_uri="$(printf "%s" "$resp" | sed -nE 's/^#EXT-X-IV.*URI="([^"]*)"/\1/p')"
+data="$(printf "%s" "$resp" | sed '/#/d')"
+printf "%s" "$data" | grep -q "http" && relative_url='' || relative_url=$(printf "%s" "$link" | sed 's_[^/]*$__')
+range=$(printf "%s\n" "$data" | wc -l)
+
+#for encrypted stream only
+if [ -n "$key_uri" ];then
+	#extract key from uri..
+	key=$(curl -s "$key_uri" | od -A n -t x1 | tr -d ' |\n')
+	#iv from uri
+	[ -z "$iv_uri" ] && iv=$(openssl rand -hex 16) || iv=$(curl -s "$iv_uri" | od -A n -t x1 | tr -d ' |\n')
+fi
+
+printf "\033[2K\r\033[1;35mpieces : $range\n\033[1;33mDownloading.."
+#downloading .ts data asynchronously
+for i in $(seq $range); do 
+    curl -s "${relative_url}$(printf "%s" "$data" | sed -n "${i}p")" > "$tmpdir/$(printf "%04d" "$i").ts" && printf "\033[2K\r\033[1;32m ✓ $i / $range done" &
+    jobs -p > "$jobdir"
+    while [ "$(cat "$jobdir" | wc -w)" -ge 35 ];do jobs > "$jobdir";sleep 0.05;done
+done
+wait
+
+#concatenating all .ts file in one file..
+if [ -n "$key_uri" ];then
+    #decrypting while concatenating..
+    printf "\033[2K\r\033[1;36m Decrypting and Concatenating pieces into single file.."
+    for i in "$tmpdir"/*;do
+	cat "$i" | openssl aes-128-cbc -d -K "$key" -iv "$iv" -nopad >> "$file.ts"
+    done
+else
+    printf "\033[2K\r\033[1;36m Concatenating pieces into single file.."
+    cat "$tmpdir"/* >> "$file.ts"
+fi
+
+rm -rdf $tmpdir $jobdir
+#conversion of allts file to mp4 video using ffmpeg..
+printf "\033[2K\r\033[1;36mEncoding file to mp4 video..\n\033[0m"
+ffmpeg -i "$file.ts" -loglevel error -stats -c copy "$file.mp4"
+
+#cleanup..
+rm $file.ts
+printf "\033[2K\r\033[1;36m Done!!"
