@@ -39,16 +39,20 @@ trap "rm -rdf $tmpdir $jobdir;exit 0" INT HUP
 printf "\033[2K\r\033[1;36mFetching resolutions.."
 m3u8_data=$(curl -s "$link")
 res_list=$(printf "%s" "$m3u8_data" | sed -nE 's_.*RESOLUTION=.*x([^,]*),.*_\1_p')
-highest_res=$(printf "$res_list" | sort -nr | head -1)
-[ "$skip_res" -eq 1 ] && printf "\033[2K\r\033[1;36mSelecting highest resolution.." || (printf "" printf "\033[2K\r\033[1;33mRESOLUTIONS >>\n\033[0m$res_list\n\033[1;34mType ur preferred resolution (default: $highest_res) > " && read -r sel_res)
-[ -z "$sel_res" ] && sel_res=$highest_res
-unset highest_res res_list
-url=$(printf "%s" "$m3u8_data" | sed -n "/$sel_res,/{n;p;}" | tr -d '\r')
-[ -d "$tmpdir" ] || mkdir -p "$tmpdir"
+if [ -n "$res_list" ];then
+    highest_res=$(printf "$res_list" | sort -nr | head -1)
+    [ "$skip_res" -eq 1 ] && printf "\033[2K\r\033[1;36mSelecting highest resolution.." || (printf "\033[2K\r\033[1;33mRESOLUTIONS >>\n\033[0m$res_list\n\033[1;34mType ur preferred resolution (default: $highest_res) > " && read -r sel_res)
+    [ -z "$sel_res" ] && sel_res=$highest_res
+    unset highest_res res_list
+    url=$(printf "%s" "$m3u8_data" | sed -n "/$sel_res,/{n;p;}" | tr -d '\r')
 #check whether the m3u8_data contains uri that starts from http
-printf "%s" "$m3u8_data" | grep -q "http" || relative_url=$(printf "%s" "$link" | sed 's_[^/]*$__')
-printf "\033[2K\r\033[1;36mFetching Metadata.."
-resp="$(curl -s "${relative_url}$url")"
+    printf "%s" "$m3u8_data" | grep -q "http" || relative_url=$(printf "%s" "$link" | sed 's_[^/]*$__')
+    printf "\033[2K\r\033[1;36mFetching Metadata.."
+    resp="$(curl -s "${relative_url}$url")"
+else
+    resp=$m3u8_data
+fi
+[ -d "$tmpdir" ] || mkdir -p "$tmpdir"
 #extract key uri and iv uri from encrypted stream if exists..
 key_uri="$(printf "%s" "$resp" | sed -nE 's/^#EXT-X-KEY.*URI="([^"]*)"/\1/p')"
 [ -z "$key_uri" ] || iv_uri="$(printf "%s" "$resp" | sed -nE 's/^#EXT-X-IV.*URI="([^"]*)"/\1/p')"
