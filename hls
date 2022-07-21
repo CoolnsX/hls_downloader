@@ -16,6 +16,9 @@ help_text () {
 	    -r select highest resolution automatically
 	    -n set maximum number of connections (default : 36)
 	    -f skip ffmpeg file conversion (used to enable the video file to run on any video player)
+	    -s subtitles url or path
+	
+	Note: if subtitles url is passed using [-s] along with skip ffmpeg [-f] is then the script will download subtitle file with same name instead of burning it in video file 
 	EOF
 }
 
@@ -25,12 +28,13 @@ file="video"
 tmpdir="${XDG_CACHE_HOME:-$HOME/.cache}/hls-temp"
 jobdir="${XDG_CACHE_HOME:-$HOME/.cache}/hls-jobs"
 
-while getopts 'o:rfhn:' OPT; do
+while getopts 'o:rfhn:s:' OPT; do
         case $OPT in
                 o)	file=$OPTARG ;;
                 n)	n=$OPTARG ;;
                 f)	skip_ffmpeg=1;;
                 r)	skip_res=1;;
+		s)	subs=$OPTARG;;
                 *|h)
                         help_text
                         exit 0
@@ -64,11 +68,7 @@ fi
 key_uri="$(printf "%s" "$resp" | sed -nE 's/^#EXT-X-KEY.*URI="([^"]*)"/\1/p')"
 [ -z "$key_uri" ] || iv_uri="$(printf "%s" "$resp" | sed -nE 's/^#EXT-X-IV.*URI="([^"]*)"/\1/p')"
 data="$(printf "%s" "$resp" | sed '/#/d')"
-if printf "%s" "$data" | grep -q "http";then
-    relative_url=''
-else
-    relative_url=$(printf "%s" "$url" | sed 's_[^/]*$__')
-fi
+printf "%s" "$data" | grep -q "http" && relative_url='' || relative_url=$(printf "%s" "$url" | sed 's_[^/]*$__')
 range=$(printf "%s\n" "$data" | wc -l)
 
 #for encrypted stream only
@@ -82,7 +82,7 @@ fi
 printf "\033[2K\r\033[1;35mpieces : $range\n\033[1;33mDownloading.."
 #downloading .ts data asynchronously
 for i in $(seq $range); do 
-    curl -s "${relative_url}$(printf "%s" "$data" | sed -n "${i}p")" > "$tmpdir/$(printf "%04d" "$i").ts" && printf "\033[2K\r\033[1;32m ✓ $i / $range done" &
+    curl -s "${relative_url}$(printf "%s" "$data" | sed -n "${i}p")" > "$tmpdir/$(printf "%05d" "$i").ts" && printf "\033[2K\r\033[1;32m ✓ $i / $range done" &
     jobs -p > "$jobdir"
     while [ "$(cat "$jobdir" | wc -l)" -ge $n ];do jobs > "$jobdir";sleep 0.05;done
 done
@@ -93,7 +93,7 @@ if [ -n "$key_uri" ];then
     #decrypting while concatenating..
     printf "\033[2K\r\033[1;36m Decrypting and Concatenating pieces into single file.."
     for i in "$tmpdir"/*;do
-	cat "$i" | openssl aes-128-cbc -d -K "$key" -iv "$iv" -nopad >> "$file.ts"
+	openssl aes-128-cbc -d -K "$key" -iv "$iv" -nopad >> "$file.ts" < "$i"
     done
 else
     printf "\033[2K\r\033[1;36m Concatenating pieces into single file.."
@@ -102,7 +102,13 @@ fi
 
 rm -rdf $tmpdir $jobdir
 #conversion of allts file to mp4 video using ffmpeg..
-[ -z "$skip_ffmpeg" ] && printf "\033[2K\r\033[1;36mEncoding file to mp4 video..\n\033[0m" && ffmpeg -i "$file.ts" -loglevel error -stats -c copy "$file.mp4" || mv "$file.ts" "$file.mp4"
+if [ -z "$skip_ffmpeg" ];then
+    printf "\033[2K\r\033[1;36mEncoding file to mp4 video..\n\033[0m"
+    [ -z "$subs" ] && ffmpeg -i "$file.ts" -loglevel error -stats -c copy "$file.mp4" || ffmpeg -i "$file.ts" -i "$subs" -loglevel error -stats -c copy -c:s mov_text "$file.mp4"
+else
+    mv "$file.ts" "$file.mp4"
+    [ -z "$subs" ] || curl -s "$subs" -o "$file.srt"
+fi
 
 #cleanup..
 rm -f "$file".ts
