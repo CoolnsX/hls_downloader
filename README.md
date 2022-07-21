@@ -4,13 +4,14 @@ A posix compliant highly fast and efficient Asynchronous stable m3u8 links paral
 
 ```
 Usage:
-    hls [ -o <filename> ] [ -r | -f ] [ <m3u8_link> ]
+    hls [ -o <filename> ] [ -r | -f | -n <no. of connections>] [ <m3u8_link> ]
     hls -h
 
 Options:
     -h show helptext
     -o filename (default : video)
     -r select highest resolution automatically
+    -n set maximum number of connections (default : 36)
     -f skip ffmpeg file conversion (used to enable the video file to run on any video player)
 ```
 
