@@ -22,9 +22,8 @@ help_text () {
 	EOF
 }
 
-skip_res=0
-n=36
-file="video"
+n=36 #no. of parallel download or connections
+file="video" #default filename
 tmpdir="${XDG_CACHE_HOME:-$HOME/.cache}/hls-temp"
 jobdir="${XDG_CACHE_HOME:-$HOME/.cache}/hls-jobs"
 
@@ -50,7 +49,7 @@ m3u8_data=$(curl -s "$link")
 res_list=$(printf "%s" "$m3u8_data" | sed -nE 's_.*RESOLUTION=.*x([^,]*).*_\1_p')
 if [ -n "$res_list" ];then
         highest_res=$(printf "$res_list" | sort -nr | head -1)
-        [ "$skip_res" -eq 1 ] && printf "\033[2K\r\033[1;36mSelecting highest resolution.." || (printf "\033[2K\r\033[1;33mRESOLUTIONS >>\n\033[0m$res_list\n\033[1;34mType ur preferred resolution (default: $highest_res) > " && read -r sel_res)
+        [ -z "$skip_res" ] && printf "\033[2K\r\033[1;33mRESOLUTIONS >>\n\033[0m$res_list\n\033[1;34mType ur preferred resolution (default: $highest_res) > " && read -r sel_res || printf "\033[2K\r\033[1;36mSelecting highest resolution.."
         [ -z "$sel_res" ] && sel_res=$highest_res
         unset highest_res res_list
         url=$(printf "%s" "$m3u8_data" | sed -n "/x$sel_res/{n;p;}" | tr -d '\r')
@@ -104,7 +103,7 @@ rm -rdf $tmpdir $jobdir
 #conversion of allts file to mp4 video using ffmpeg..
 if [ -z "$skip_ffmpeg" ];then
     printf "\033[2K\r\033[1;36mEncoding file to mp4 video..\n\033[0m"
-    [ -z "$subs" ] && ffmpeg -i "$file.ts" -loglevel error -stats -c copy "$file.mp4" || ffmpeg -i "$file.ts" -i "$subs" -loglevel error -stats -c copy -c:s mov_text "$file.mp4"
+    [ -z "$subs" ] && ffmpeg -i "$file.ts" -loglevel error -stats -c copy "$file.mp4" || ffmpeg -i "$file.ts" -i "$subs" -loglevel error -stats -c copy -c:s coolansx "$file.mp4"
 else
     mv "$file.ts" "$file.mp4"
     [ -z "$subs" ] || curl -s "$subs" -o "$file.srt"
