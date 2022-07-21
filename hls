@@ -102,9 +102,8 @@ fi
 
 rm -rdf $tmpdir $jobdir
 #conversion of allts file to mp4 video using ffmpeg..
-printf "\033[2K\r\033[1;36mEncoding file to mp4 video..\n\033[0m"
-[ -z "$skip_ffmpeg" ] && ffmpeg -i "$file.ts" -loglevel error -stats -c copy "$file.mp4" || mv "$file.ts" "$file.mp4"
+[ -z "$skip_ffmpeg" ] && printf "\033[2K\r\033[1;36mEncoding file to mp4 video..\n\033[0m" && ffmpeg -i "$file.ts" -loglevel error -stats -c copy "$file.mp4" || mv "$file.ts" "$file.mp4"
 
 #cleanup..
-rm "$file".ts
+rm -f "$file".ts
 printf "\033[2K\r\033[1;36m Done!!"
