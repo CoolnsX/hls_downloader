@@ -16,16 +16,25 @@ help_text () {
 	    -r select highest resolution automatically
 	    -n set maximum number of connections (default : 36)
 	    -f skip ffmpeg file conversion (used to enable the video file to run on any video player)
-	    -s subtitles url or path
-	
-	Note: if subtitles url is passed using [-s] along with skip ffmpeg [-f] is then the script will download subtitle file with same name instead of burning it in video file 
+	    -s subtitles url (will be saved as same name as the video file)
 	EOF
+}
+
+download(){
+	printf "" > $failed
+	for i in $1; do 
+	    curl --max-time 30 -s "${relative_url}$(printf "%s" "$data" | sed -n "${i}p")" > "$tmpdir/$(printf "%05d" "$i").ts" && printf "\033[2K\r\033[1;32m ✓ $i / $range done" || printf "$i\n" >> $failed &
+	    jobs -p > "$jobdir"
+	    while [ "$(cat "$jobdir" | wc -l)" -ge $n ];do jobs > "$jobdir";sleep 0.05;done
+	done
+	wait
 }
 
 n=36 #no. of parallel download or connections
 file="video" #default filename
 tmpdir="${XDG_CACHE_HOME:-$HOME/.cache}/hls-temp"
 jobdir="${XDG_CACHE_HOME:-$HOME/.cache}/hls-jobs"
+failed="${XDG_CACHE_HOME:-$HOME/.cache}/hls-fail"
 
 while getopts 'o:rfhn:s:' OPT; do
         case $OPT in
@@ -43,7 +52,7 @@ done
 shift $((OPTIND - 1))
 
 [ -z "$*" ] && printf "\033[1;34mEnter link >\033[0m " && read -r link || link=$* 
-trap "rm -rdf $tmpdir $jobdir;exit 0" INT HUP
+trap "killall curl;rm -rdf $tmpdir $jobdir;exit 0" INT HUP
 printf "\033[2K\r\033[1;36mFetching resolutions.."
 m3u8_data=$(curl -s "$link")
 res_list=$(printf "%s" "$m3u8_data" | sed -nE 's_.*RESOLUTION=.*x([^,]*).*_\1_p')
@@ -80,12 +89,11 @@ fi
 
 printf "\033[2K\r\033[1;35mpieces : $range\n\033[1;33mDownloading.."
 #downloading .ts data asynchronously
-for i in $(seq $range); do 
-    curl -s "${relative_url}$(printf "%s" "$data" | sed -n "${i}p")" > "$tmpdir/$(printf "%05d" "$i").ts" && printf "\033[2K\r\033[1;32m ✓ $i / $range done" &
-    jobs -p > "$jobdir"
-    while [ "$(cat "$jobdir" | wc -l)" -ge $n ];do jobs > "$jobdir";sleep 0.05;done
-done
-wait
+download "$(seq $range)"
+#redownloading failed pieces
+download "$(cat $failed)"
+#downloading subtitles if uri passed using -s option
+[ -z "$subs" ] || curl -s "$subs" -o "$file.srt" &
 
 #concatenating all .ts file in one file..
 if [ -n "$key_uri" ];then
@@ -99,14 +107,13 @@ else
     cat "$tmpdir"/* >> "$file.ts"
 fi
 
-rm -rdf $tmpdir $jobdir
+rm -rdf $tmpdir $jobdir $failed
 #conversion of allts file to mp4 video using ffmpeg..
 if [ -z "$skip_ffmpeg" ];then
     printf "\033[2K\r\033[1;36mEncoding file to mp4 video..\n\033[0m"
-    [ -z "$subs" ] && ffmpeg -i "$file.ts" -loglevel error -stats -c copy "$file.mp4" || ffmpeg -i "$file.ts" -i "$subs" -loglevel error -stats -c copy -c:s coolansx "$file.mp4"
+    ffmpeg -i "$file.ts" -loglevel error -stats -c copy "$file.mp4"
 else
     mv "$file.ts" "$file.mp4"
-    [ -z "$subs" ] || curl -s "$subs" -o "$file.srt"
 fi
 
 #cleanup..
