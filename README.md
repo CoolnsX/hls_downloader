@@ -31,5 +31,6 @@ NOTE :- Increasing the number will make the download faster but less stable and 
 
 # Dependency
 
+- aria2 for downloading pieces (curl as fallback, if aria2 not found)
 - ffmpeg for conversion
 - openssl for decrypting streams
