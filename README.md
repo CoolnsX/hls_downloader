@@ -27,7 +27,7 @@ You can Increase/Decrease it by using ```-n <no. of connections>```
 Internet Speed = 12 MByte per seconds..
 36 (Internet Speed * 3)..
 ```
-NOTE :- Increasing the number will make the download faster but less stable and Decreasing the number will make download slower but stable.. Decrease the number if the script is hanging out during download process..
+NOTE :- Increasing the number will make the download faster but less stable and Decreasing the number will make download slower but stable.. Decrease the number if the script is hanging out during download process.. - This applies if you use curl for downloading (I know you have reasons for not having aria2 installed), It doesn't affect in aria2 case and leaving it default will be recommended. :)
 
 # Dependency
 
