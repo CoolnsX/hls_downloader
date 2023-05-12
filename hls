@@ -63,7 +63,7 @@ if [ -n "$res_list" ];then
         unset highest_res res_list
         url=$(printf "%s" "$m3u8_data" | sed -n "/x$sel_res/{n;p;}" | tr -d '\r')
     #check whether the m3u8_data contains uri that starts from http
-        printf "%s" "$m3u8_data" | grep -q "http" || relative_url=$(printf "%s" "$link" | sed 's_[^/]*$__')
+        printf "%s" "$url" | grep -q "http" || relative_url=$(printf "%s" "$link" | sed 's_[^/]*$__')
         printf "\033[2K\r\033[1;36mFetching Metadata.."
 	url="${relative_url}$url"
         resp="$(curl -s "$url")"
@@ -89,9 +89,13 @@ fi
 
 printf "\033[2K\r\033[1;35mpieces : $range\n\033[1;33mDownloading.."
 #downloading .ts data asynchronously
-download "$(seq $range)"
-#redownloading failed pieces
-download "$(cat $failed)"
+if command -v aria2c >>/dev/null;then
+	printf '%s' "$data" |  nl -n'rz' | sed -E "s|^([0-9]*)[[:space:]]*(.*)|${relative_url}\2\n\tout=\1.ts|g" | aria2c -x16 -s16 -j30 -d "$tmpdir" -i - --download-result=hide --summary-interval=0
+else
+	download "$(seq $range)"
+	#redownloading failed pieces
+	download "$(cat $failed)"
+fi
 #downloading subtitles if uri passed using -s option
 [ -z "$subs" ] || curl -s "$subs" -o "$file.srt" &
 
