@@ -90,7 +90,7 @@ fi
 printf "\033[2K\r\033[1;35mpieces : $range\n\033[1;33mDownloading.."
 #downloading .ts data asynchronously
 if command -v aria2c >>/dev/null;then
-	printf '%s' "$data" |  nl -n'rz' | sed -E "s|^([0-9]*)[[:space:]]*(.*)|${relative_url}\2\n\tout=\1.ts|g" | aria2c -x16 -s16 -j "$n" -d "$tmpdir" -i - --download-result=hide --summary-interval=0
+	printf '%s' "$data" |  nl -n'rz' | sed -E "s|^([0-9]*)[[:space:]]*(.*)|${relative_url}\2\n\tout=\1.ts|g" | aria2c --no-conf=true --enable-rpc=false -x16 -s16 -j "$n" -d "$tmpdir" -i - --download-result=hide --summary-interval=0
 else
 	download "$(seq $range)"
 	#redownloading failed pieces
