@@ -54,7 +54,7 @@ shift $((OPTIND - 1))
 [ -z "$*" ] && printf "\033[1;34mEnter link >\033[0m " && read -r link || link=$* 
 trap "killall curl;rm -rdf '$tmpdir' '$jobdir';exit 0" INT HUP
 printf "\033[2K\r\033[1;36mFetching resolutions.."
-m3u8_data=$(curl -s "$link")
+m3u8_data=$(curl -s "$link" | sed '/#EXT-X-I-FRAME-STREAM-INF/d')
 res_list=$(printf "%s" "$m3u8_data" | sed -nE 's_.*RESOLUTION=.*x([^,]*).*_\1_p')
 if [ -n "$res_list" ];then
         highest_res=$(printf "%s" "$res_list" | sort -nr | head -1)
